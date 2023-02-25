@@ -1,5 +1,5 @@
 #import libraries
-import webbrowser
+###import webbrowser
 import inquirer 
 import requests 
 from bs4 import BeautifulSoup
@@ -24,7 +24,8 @@ block_list = ['https://www.bing.com/new/termsofuse','https://privacy.microsoft.c
               'https://www.yahoo.com/lifestyle','https://help.yahoo.com/kb/search-for-desktop','http://maps.google.com/maps',
               'https://login.yahoo.com?.src=search','https://images.search.yahoo.com/search','https://video.search.yahoo.com/search',
               'https://search.yahoo.com/search?ei=UTF-8&','https://yahoo.uservoice.com/forums','https://legal.yahoo.com/',
-              'https://guce.yahoo.com/privacy-dashboard','https://advertising.yahoo.com','https://help.yahoo.com','https://www.yahoo.com'
+              'https://guce.yahoo.com/privacy-dashboard','https://advertising.yahoo.com','https://help.yahoo.com','https://www.yahoo.com',
+              'http://www.google.com/aclk?'
              ]
 
 #provide search engine options for user
@@ -39,7 +40,7 @@ input_query= raw_input("Enter search query: ")
 #new browser tab will be opened if possible 
 new=2
 #display url with the above parameters 
-webbrowser.open(engines[engine]+input_query,new=new)
+####webbrowser.open(engines[engine]+input_query,new=new)
 
 #request html from web search 
 r = requests.get(engines[engine]+input_query, headers={'user-agent': 'my-app/0.0.1'})
@@ -76,6 +77,16 @@ def urls(soup,engine):
     #return cleaned up list of urls 
     return list(map(str,map(lambda x: x.strip('/url?q='),url)))
 
+#get raw text from urls resulting from engine scrape
+def get_raw_text(url):
+    soup = BeautifulSoup(requests.get(url).text,'html.parser')
+    for script in soup(['script','style','template','TemplateString','ProcessingInstruction','Declaration','Doctype']):
+        script.extract()
+    return (url,soup.get_text(strip=True).replace(u'\xa0', u' ').encode('ascii','ignore')[:10])
+
+#get url and raw text from scraped urls
+url_text = map(lambda x: get_raw_text(x), urls(soup,engine))
+
 #opening connection to MySQL database 
 connection = mysql.connector.connect(user='root', database = 'MY_CUSTOM_BOT', password = '')
 #creating cursor handler for inserting data 
@@ -84,10 +95,9 @@ cursor = connection.cursor()
 #query for adding search info
 add_search = ('INSERT INTO searches(query,engine) values(%(query)s, %(engine)s)')
 #function query for adding url info 
-def add_url(table,url,f_key):
-    query = ('INSERT INTO %(table)s(url,search_id) values(\'%(url)s\',%(f_key)s)')
-    return query%{'table':table,'url':url,'f_key':f_key}
-
+def add_data(table,url,f_key,raw_text):
+    query = ('INSERT INTO %(table)s(url,search_id,raw_text) values(\'%(url)s\',%(f_key)s,\'%(raw_text)s\')')
+    return query%{'table':table,'url':url,'f_key':f_key,'raw_text':raw_text}
 
 #inserting search info 
 cursor.execute(add_search,{'query':input_query, 'engine':engine})
@@ -95,11 +105,11 @@ cursor.execute(add_search,{'query':input_query, 'engine':engine})
 last_search_id = cursor.lastrowid
 
 #inserting url info
-for url in urls(soup):
-    tables = {'Bing':'bing_urls', 'Google':'google_urls', 'Yahoo':'yahoo_urls','DuckDuckGo':'duckduckgo_urls'}
-    cursor.execute(add_url(tables[engine],url,last_search_id))
-
-#print(soup)
+for url,text in url_text:
+    tables = {'Bing':'bing_results', 'Google':'google_results', 'Yahoo':'yahoo_results','DuckDuckGo':'duckduckgo_results'}
+    print(add_data(tables[engine],url,last_search_id,text))
+    cursor.execute(add_data(tables[engine],url,last_search_id,text))
+    
 
 #commit data to database 
 connection.commit()
