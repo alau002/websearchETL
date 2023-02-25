@@ -25,7 +25,7 @@ block_list = ['https://www.bing.com/new/termsofuse','https://privacy.microsoft.c
               'https://login.yahoo.com?.src=search','https://images.search.yahoo.com/search','https://video.search.yahoo.com/search',
               'https://search.yahoo.com/search?ei=UTF-8&','https://yahoo.uservoice.com/forums','https://legal.yahoo.com/',
               'https://guce.yahoo.com/privacy-dashboard','https://advertising.yahoo.com','https://help.yahoo.com','https://www.yahoo.com',
-              'http://www.google.com/aclk?'
+              'http://www.google.com/aclk?','https://www.google.com/imgres'
              ]
 
 #provide search engine options for user
@@ -94,10 +94,6 @@ cursor = connection.cursor()
 
 #query for adding search info
 add_search = ('INSERT INTO searches(query,engine) values(%(query)s, %(engine)s)')
-#function query for adding url info 
-def add_data(table,url,f_key,raw_text):
-    query = ('INSERT INTO %(table)s(url,search_id,raw_text) values(\'%(url)s\',%(f_key)s,\'%(raw_text)s\')')
-    return query%{'table':table,'url':url,'f_key':f_key,'raw_text':raw_text}
 
 #inserting search info 
 cursor.execute(add_search,{'query':input_query, 'engine':engine})
@@ -107,8 +103,8 @@ last_search_id = cursor.lastrowid
 #inserting url info
 for url,text in url_text:
     tables = {'Bing':'bing_results', 'Google':'google_results', 'Yahoo':'yahoo_results','DuckDuckGo':'duckduckgo_results'}
-    print(add_data(tables[engine],url,last_search_id,text))
-    cursor.execute(add_data(tables[engine],url,last_search_id,text))
+    query = 'INSERT INTO ' +tables[engine]+'(url,search_id,raw_text) values(%s,%s,%s)'
+    cursor.execute(query, (url,last_search_id,text))
     
 
 #commit data to database 
